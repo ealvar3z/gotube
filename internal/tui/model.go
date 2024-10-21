@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -18,9 +19,13 @@ type model struct {
 	state   string        // state btwn searching and displaying
 	width   int           // term with
 	height  int           // term height
+	loading bool          // mpv delay
+	spinner spinner.Model
 }
 
 func Initialize() model {
+	s := spinner.New()
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#FF00FF"))
 	return model{
 		query:   "",
 		results: []videx.Video{},
@@ -28,6 +33,8 @@ func Initialize() model {
 		state:   "searching", // default state
 		width:   80,          // default
 		height:  24,          // default
+		loading: false,
+		spinner: s,
 	}
 }
 
@@ -58,12 +65,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				if len(m.results) > 0 && m.cursor >= 0 && m.cursor < len(m.results) {
 					video := m.results[m.cursor]
 					videoURL := "https://www.youtube.com" + video.URL
-					cmd := exec.Command("nohup", "mpv", videoURL, ">/dev/null", "2>&1", "&")
-					err := cmd.Start()
-					if err != nil {
-						fmt.Println("[ERROR] mpv failed to open:", err)
-					}
-					fmt.Printf("Playing video: %s\n", video.Title)
+
+					m.loading = true
+					return m, tea.Batch(m.spinner.Tick, func() tea.Msg {
+						cmd := exec.Command("nohup", "mpv", videoURL, ">/dev/null", "2>&1", "&")
+						err := cmd.Start()
+						if err != nil {
+							fmt.Println("[ERROR] mpv failed to open:", err)
+						}
+						return "mpv_loaded"
+					})
 				}
 
 			}
@@ -88,6 +99,16 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+	case spinner.TickMsg:
+		if m.loading {
+			newModel, cmd := m.spinner.Update(msg)
+			m.spinner = newModel
+			return m, cmd
+		}
+	case string:
+		if msg == "mpv_loaded" {
+			m.loading = false
+		}
 	}
 	return m, nil
 }
@@ -128,6 +149,10 @@ func (m model) View() string {
 	end := start + pageSize
 	if end > len(m.results) {
 		end = len(m.results)
+	}
+
+	if m.loading {
+		return m.spinner.View() + "\nLoading video..."
 	}
 
 	// the UI
