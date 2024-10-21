@@ -29,7 +29,7 @@ git clone https://github.com/your-username/gotube.git
 `Go`: Install the Go programming language from https://golang.org.
 
 `mpv`: Make sure mpv is installed on your system.  
-    You can install it via your package manager:
+    You can install it via your package manager:  
         - Debian/Ubuntu: `sudo apt install mpv`  
         - Arch: `sudo pacman -S mpv`  
         - macOS: `brew install mpv`  
